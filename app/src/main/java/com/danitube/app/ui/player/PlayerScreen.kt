@@ -203,7 +203,7 @@ private fun VideoPage(item: VideoItem, isCurrent: Boolean, onEnded: () -> Unit, 
     }
 }
 
-/** Hides status and navigation bars while the player is on screen. */
+/** Hides the status bar while the player is on screen; the navigation bar/gesture area stays usable. */
 @Composable
 private fun ImmersiveMode() {
     val view = LocalView.current
@@ -211,9 +211,10 @@ private fun ImmersiveMode() {
         val window = (view.context as Activity).window
         val controller = WindowCompat.getInsetsController(window, view)
         controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        controller.hide(WindowInsetsCompat.Type.systemBars())
+        // Only the status bar: hiding the navigation bar too can swallow the first back swipe.
+        controller.hide(WindowInsetsCompat.Type.statusBars())
         onDispose {
-            controller.show(WindowInsetsCompat.Type.systemBars())
+            controller.show(WindowInsetsCompat.Type.statusBars())
             (view.context as Activity).requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
     }

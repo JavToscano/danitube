@@ -30,7 +30,8 @@
         <activity
             android:name=".ui.add.ShareActivity"
             android:exported="true"
-            android:label="@string/share_label">
+            android:label="@string/share_label"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
