@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name" translatable="false">DaniTube</string>
+    <string name="share_label">Agregar a DaniTube</string>
+
+    <string name="nav_home">Inicio</string>
+    <string name="nav_shorts">Shorts</string>
+    <string name="search">Buscar</string>
+    <string name="search_hint">Buscar en DaniTube</string>
+    <string name="clear">Borrar</string>
+    <string name="no_results">Sin resultados</string>
+    <string name="back">Atrás</string>
+    <string name="cancel">Cancelar</string>
+
+    <!-- Biblioteca -->
+    <string name="library_empty_title">Aún no hay videos</string>
+    <string name="library_empty_hint">Mantén presionado el logo para agregar videos</string>
+
+    <!-- Agregar video -->
+    <string name="add_video">Agregar video</string>
+    <string name="youtube_link">Enlace de YouTube</string>
+    <string name="youtube_link_hint">Un video o una lista de reproducción completa</string>
+    <string name="paste">Pegar</string>
+    <string name="download">Descargar</string>
+    <string name="download_playlist">Descargar lista</string>
+    <string name="playlist_first_shown">Lista de reproducción: se muestra el primer video</string>
+    <string name="downloads">Descargas</string>
+    <string name="clear_finished">Limpiar terminadas</string>
+    <string name="status_waiting">En espera…</string>
+    <string name="status_done">Listo</string>
+    <string name="status_failed">Error: %1$s</string>
+    <string name="status_cancelled">Cancelada</string>
+    <string name="error_not_youtube_link">Eso no parece un enlace de YouTube</string>
+    <string name="error_preview_failed">No se pudo cargar el video</string>
+    <string name="error_nothing_downloaded">No se descargó nada</string>
+    <string name="error_download_failed">Falló la descarga</string>
+    <string name="notification_channel_downloads">Descargas</string>
+    <string name="notification_downloading">Descargando video</string>
+
+    <!-- Área de padres -->
+    <string name="parent_area">Área de padres</string>
+    <string name="manage_videos">Administrar videos</string>
+    <string name="back_to_app">Volver a DaniTube</string>
+    <string name="storage_summary">Videos: %1$d · Usado: %2$s · Libre: %3$s</string>
+    <string name="change_pin">Cambiar PIN</string>
+    <string name="exit_app">Salir de la app</string>
+    <string name="no_videos">No hay videos</string>
+    <string name="delete">Eliminar</string>
+    <string name="delete_video_title">¿Eliminar video?</string>
+
+    <!-- PIN -->
+    <string name="pin_title">Solo para padres</string>
+    <string name="pin_enter">Ingresa tu PIN</string>
+    <string name="pin_label">PIN</string>
+    <string name="pin_wrong">PIN incorrecto</string>
+    <string name="pin_enter_action">Entrar</string>
+    <string name="pin_create_title">Crea un PIN</string>
+    <string name="pin_create_hint">Elige un PIN de 4 dígitos para el área de padres. Lo necesitarás para agregar o eliminar videos.</string>
+    <string name="pin_confirm_label">Confirmar PIN</string>
+    <string name="pin_mismatch">Los PIN no coinciden</string>
+    <string name="pin_save">Guardar</string>
+
+    <!-- Descargas: cancelar / reintentar -->
+    <string name="retry">Reintentar</string>
+    <string name="status_preparing">Preparando…</string>
+
+    <!-- Pestañas -->
+    <string name="nav_favorites">Favoritos</string>
+    <string name="favorites_empty_title">Aún no hay favoritos</string>
+    <string name="favorites_empty_hint">Los videos que más vea aparecerán aquí</string>
+    <plurals name="played_times">
+        <item quantity="one">Visto %d vez</item>
+        <item quantity="other">Visto %d veces</item>
+    </plurals>
+
+    <!-- Copia de seguridad -->
+    <string name="backup_title">Copia de seguridad</string>
+    <string name="backup_description">Guarda los videos en una carpeta (por ejemplo en Descargas, una memoria USB o una carpeta sincronizada) para no perderlos si desinstalas la app o cambias de teléfono. Para recuperarlos, elige esa misma carpeta en \"Restaurar\".</string>
+    <string name="backup_action">Guardar copia en una carpeta</string>
+    <string name="restore_action">Restaurar desde una carpeta</string>
+    <string name="backup_running">Copiando… %1$d de %2$d</string>
+    <string name="backup_done">Copia lista: %1$d videos</string>
+    <string name="restore_done">Restaurados: %1$d videos</string>
+    <string name="backup_not_found">No se encontró una copia en esa carpeta</string>
+    <string name="backup_error">No se pudo completar: %1$s</string>
+</resources>
