@@ -1,0 +1,116 @@
+# DaniTube
+
+A private, offline video app for a toddler. Videos are downloaded once from YouTube, stored on the
+phone, and played in a YouTube-style app with no ads, no recommendations and no links out. She can
+only browse and scroll; everything else sits behind a parent PIN.
+
+The interface is in Spanish. The code and this README are in English.
+
+> **Personal use only.** Downloading from YouTube goes against YouTube's terms of service. This app
+> is meant to be installed on your own family's phone. Don't publish it to the Play Store.
+
+## Features
+
+**For the child**
+- **Home feed** with a large thumbnail, duration and title for every downloaded video.
+- **Shorts-style player**: full screen, swipe up for the next video, tap to pause, no other
+  controls. Videos are shuffled, and the next one starts by itself when one ends.
+- **Rotates with the video**: vertical videos stay in portrait, horizontal ones switch to
+  landscape. Black bars, like YouTube, never cropping.
+- **Favoritos tab**: the videos she plays most, most-watched first. A video counts as played after
+  3 seconds on screen.
+- **Search** over the downloaded videos (it never touches the internet).
+- Looks like the video app she already knows: dark theme, red accent, bottom bar.
+- Back never leaves the app from the home screen.
+
+**For the parent** (press and hold the logo, then enter the PIN)
+- **Agregar video**: paste a link, or use *Share → DaniTube* from the YouTube app or a browser.
+  Works with single videos, Shorts links and whole playlists. A preview is shown before downloading.
+- **Download queue** with progress, cancel and retry.
+- **Administrar videos**: list with delete.
+- **Copia de seguridad**: copy the videos to a folder you choose (USB, Downloads, a synced folder)
+  and restore them from there, so an uninstall or a new phone doesn't lose them.
+- **Cambiar PIN**, storage used and free space, and *Salir de la app*.
+
+The PIN is created the first time you open the parent area and is stored only as a salted hash.
+If you forget it, clear the app's data in Android settings (this also deletes the videos, so back
+up first).
+
+## Tech stack
+
+| | |
+|---|---|
+| Language / UI | Kotlin, Jetpack Compose, Material 3 |
+| Architecture | MVVM, Hilt, Kotlin Flow |
+| Downloads | [youtubedl-android](https://github.com/JunkFood02/youtubedl-android) (yt-dlp + ffmpeg) |
+| Background work | WorkManager (foreground service for downloads, daily yt-dlp update) |
+| Playback | Media3 ExoPlayer |
+| Storage | Room (metadata), app-private files (videos and thumbnails) |
+| Images | Coil |
+| Backup | Storage Access Framework (`DocumentFile`) |
+
+`minSdk` 26, `targetSdk` / `compileSdk` 35.
+
+## Getting started
+
+1. Install [Android Studio](https://developer.android.com/studio). It bundles the JDK, and the
+   setup wizard installs the SDK and emulator.
+2. Open this folder. Studio creates the Gradle wrapper and syncs the project.
+3. Run the `app` configuration on an emulator (use an arm64 image on Apple Silicon) or a phone
+   with USB debugging.
+
+The first download is slower than the rest: the app unpacks yt-dlp and updates it to the latest
+version. Downloads need an internet connection; playback does not.
+
+### Tests
+
+```
+./gradlew test
+```
+
+`YoutubeLinkTest` covers the link parser (watch, `youtu.be`, Shorts, playlists, shared text).
+
+## How it works
+
+```
+app/src/main/java/com/danitube/app/
+├── DaniTubeApp.kt            Hilt app, WorkManager config, schedules the daily yt-dlp update
+├── data/
+│   ├── BackupManager.kt      Backup/restore to a user-picked folder
+│   ├── PinStore.kt           Salted-hash PIN in SharedPreferences
+│   ├── VideoRepository.kt
+│   ├── db/                   Room: VideoEntity, VideoDao, AppDatabase (+ migration 1→2)
+│   └── download/             YoutubeLink parser, YtDlpDownloader, DownloadWorker,
+│                             DownloadScheduler, YtDlpUpdateWorker, VideoStorage
+├── di/AppModule.kt
+└── ui/
+    ├── MainActivity.kt       Kid mode (feed, tabs, search) and the parent screens
+    ├── add/                  Add video screen and ShareActivity (share target)
+    ├── library/              Feed grid (Home and Favoritos)
+    ├── player/               Shorts pager, ExoPlayer per page
+    ├── parent/               PIN gate, parent menu, manage videos, backup
+    └── theme/
+```
+
+**Download flow.** A link is normalised by `YoutubeLink`, previewed through yt-dlp, then queued
+as a WorkManager job (one job per link). Jobs run one at a time. yt-dlp writes `<id>.mp4`, a jpg
+thumbnail and an info json into the app's private `files/videos` folder; the info json is turned
+into a Room row. Videos are capped at 720p to save space.
+
+**Keeping yt-dlp working.** YouTube changes often and old yt-dlp copies stop working. The app
+updates yt-dlp on first use, once a day on Wi-Fi, and automatically when a download or preview
+fails (then retries once).
+
+**Share target.** `ShareActivity` receives text shared from other apps. It is separate from
+`MainActivity` and asks for the PIN before showing anything.
+
+## Known limitations
+
+- Nothing stops the phone's Home or Recents buttons, so she can leave the app. Screen pinning was
+  tried and removed. A silent kiosk (device-owner mode) would need a one-time `adb` setup.
+- The PIN keeps a toddler out; it is not strong protection against an older child.
+- Backups are manual. Videos live in app-private storage, so uninstalling the app deletes them
+  unless you made a backup first.
+- Backup and restore copy files inside the app, so keep it open while they run.
+- yt-dlp can still break between updates if YouTube changes something very recently.
+- The UI text is Spanish only.
