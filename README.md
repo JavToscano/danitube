@@ -41,6 +41,11 @@ The interface is in Spanish. The code and this README are in English.
 - **Carpeta de videos**: pick a folder outside the app (USB, Downloads, a synced folder). Videos
   are stored there, not inside the app, so updates and uninstalls don't lose them. After a
   reinstall, pick the same folder and the library comes back.
+- **Updates from GitHub**: once a day, on Wi-Fi only, the app checks the project's latest GitHub
+  release and downloads the new APK. When one is ready, the parent area shows **Actualizar a vX.Y.Z**;
+  tapping it installs it. Android asks for a confirmation (and, the first time, to allow installs
+  from DaniTube). The child never sees the install screen. The videos live in the library folder, so
+  an update doesn't touch them.
 - **Cambiar PIN**, storage used and free space, and *Salir de la app*.
 
 The PIN is created the first time you open the parent area and is stored only as a salted hash.
@@ -92,6 +97,7 @@ app/src/main/java/com/danitube/app/
 │   ├── VideoRepository.kt
 │   ├── db/                   Room: VideoEntity, VideoDao, AppDatabase (+ migration 1→2)
 │   ├── suggest/              SuggestionEngine (taste profile, daily search), worker, Wi-Fi monitor, switch
+│   ├── update/               UpdateManager (check, download, verify, install), worker, install receiver
 │   └── download/             YoutubeLink parser, YtDlpDownloader, DownloadWorker,
 │                             DownloadScheduler, YtDlpUpdateWorker, VideoStorage
 ├── di/AppModule.kt
