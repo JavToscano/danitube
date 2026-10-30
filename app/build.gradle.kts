@@ -8,10 +8,15 @@ plugins {
     alias(libs.plugins.hilt)
 }
 
-// Release signing: the keystore lives outside the repo, in ~/.danitube/keystore.properties.
+// Release signing. The key is never in the repo: GitHub Actions passes it through environment
+// variables, and on this machine it comes from ~/.danitube/keystore.properties.
 val keystoreProps = Properties().apply {
     val file = File(System.getProperty("user.home"), ".danitube/keystore.properties")
     if (file.exists()) file.inputStream().use { load(it) }
+    System.getenv("KEYSTORE_FILE")?.let { setProperty("storeFile", it) }
+    System.getenv("KEYSTORE_PASSWORD")?.let { setProperty("storePassword", it) }
+    System.getenv("KEY_ALIAS")?.let { setProperty("keyAlias", it) }
+    System.getenv("KEY_PASSWORD")?.let { setProperty("keyPassword", it) }
 }
 
 android {
@@ -22,8 +27,9 @@ android {
         applicationId = "com.danitube.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        // The release workflow passes these from the git tag (-PversionName / -PversionCode).
+        versionCode = (findProperty("versionCode") as String?)?.toInt() ?: 1
+        versionName = (findProperty("versionName") as String?) ?: "0.1.0"
 
         // yt-dlp bundles native binaries; keep the APK to the ABIs real phones use.
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
