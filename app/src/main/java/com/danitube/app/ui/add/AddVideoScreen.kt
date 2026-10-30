@@ -18,7 +18,11 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -77,6 +81,7 @@ fun AddVideoScreen(
     val downloads by viewModel.downloads.collectAsStateWithLifecycle()
     val downloadedIds by viewModel.downloadedIds.collectAsStateWithLifecycle()
     val clipboard = LocalClipboardManager.current
+    val focusManager = LocalFocusManager.current
 
     // Android 13+ needs permission to show the download notification; downloads work without it.
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
@@ -99,6 +104,7 @@ fun AddVideoScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .statusBarsPadding()
+            .imePadding() // keeps the list and the download button above the keyboard
             .navigationBarsPadding()
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -123,7 +129,12 @@ fun AddVideoScreen(
         )
 
         val isSearch = state.links.isEmpty() && state.input.isNotBlank()
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.weight(1f)) {
+        val listState = rememberLazyListState()
+        // Scrolling the results closes the keyboard, like most search screens.
+        LaunchedEffect(listState) {
+            snapshotFlow { listState.isScrollInProgress }.collect { if (it) focusManager.clearFocus() }
+        }
+        LazyColumn(state = listState, verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.weight(1f)) {
             when (val preview = state.preview) {
                 PreviewState.None -> Unit
                 PreviewState.Loading -> item {
@@ -145,7 +156,7 @@ fun AddVideoScreen(
             if (isSearch) {
                 item {
                     FilledTonalButton(
-                        onClick = viewModel::search,
+                        onClick = { focusManager.clearFocus(); viewModel.search() },
                         enabled = state.search != SearchState.Loading,
                         shape = CircleShape,
                         modifier = Modifier.fillMaxWidth().height(48.dp),
@@ -201,7 +212,7 @@ fun AddVideoScreen(
 
         val picked = state.selected.size
         Button(
-            onClick = { viewModel.confirm(); viewModel.reset() },
+            onClick = { focusManager.clearFocus(); viewModel.confirm(); viewModel.reset() },
             // With a list of links there is no waiting for the preview of the first one.
             enabled = if (isSearch) picked > 0 else state.preview is PreviewState.Ready || state.links.size > 1,
             shape = CircleShape,

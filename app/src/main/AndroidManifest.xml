@@ -19,6 +19,7 @@
         <activity
             android:name=".ui.MainActivity"
             android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
             android:exported="true">
             <intent-filter>
@@ -32,6 +33,7 @@
             android:name=".ui.add.ShareActivity"
             android:exported="true"
             android:label="@string/share_label"
+            android:windowSoftInputMode="adjustResize"
             android:theme="@android:style/Theme.Translucent.NoTitleBar">
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
