@@ -19,10 +19,18 @@ data class VideoEntity(
     val channel: String? = null,
     /** Tags joined by [TAG_SEPARATOR]; null until fetched, "" when the video has none. */
     val tags: String? = null,
+    /** A vertical video of up to 3 minutes, like YouTube's Shorts; null until its size is known. */
+    val isShort: Boolean? = null,
 ) {
     val tagList: List<String> get() = tags.orEmpty().split(TAG_SEPARATOR).filter { it.isNotBlank() }
 
     companion object {
+        const val SHORT_MAX_SEC = 180
+
+        /** Vertical and short enough to be a Short; null when the picture size is unknown. */
+        fun shapeIsShort(width: Int, height: Int, durationSec: Int): Boolean? =
+            if (width <= 0 || height <= 0) null else height > width && durationSec <= SHORT_MAX_SEC
+
         const val TAG_SEPARATOR = "\n"
         fun joinTags(tags: List<String>) = tags.joinToString(TAG_SEPARATOR)
     }

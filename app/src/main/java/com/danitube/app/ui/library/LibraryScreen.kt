@@ -13,9 +13,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -68,10 +74,100 @@ fun LibraryScreen(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            items(shown, key = { it.id }) {
-                VideoCard(it, showPlays = favoritesOnly, onClick = { onVideoClick(it.id) })
+            feed(shown).forEach { entry ->
+                when (entry) {
+                    is FeedEntry.Video -> item(key = entry.item.id) {
+                        VideoCard(entry.item, showPlays = favoritesOnly, onClick = { onVideoClick(entry.item.id) })
+                    }
+                    // The shelf takes the whole row, like YouTube's Shorts shelf.
+                    is FeedEntry.Shelf -> item(key = entry.key, span = { GridItemSpan(maxLineSpan) }) {
+                        ShortsShelf(entry.items, onClick = { onVideoClick(it.id) })
+                    }
+                }
             }
         }
+    }
+}
+
+/** One row of the feed: a wide video card, or a shelf of Shorts. */
+internal sealed interface FeedEntry {
+    data class Video(val item: VideoItem) : FeedEntry
+    data class Shelf(val key: String, val items: List<VideoItem>) : FeedEntry
+}
+
+private const val SHELF_SIZE = 8
+private const val FIRST_SHELF_AFTER = 2
+private const val SHELF_EVERY = 8
+
+/**
+ * Like YouTube: regular videos are wide cards and the Shorts are grouped into shelves of tall
+ * cards, the first one after a couple of videos and then one every few more. Order is kept.
+ */
+internal fun feed(items: List<VideoItem>): List<FeedEntry> {
+    val (shorts, videos) = items.partition { it.isShort }
+    if (shorts.isEmpty()) return videos.map(FeedEntry::Video)
+    val shelves = shorts.chunked(SHELF_SIZE).mapIndexed { i, chunk -> FeedEntry.Shelf("shelf-$i", chunk) }.toMutableList()
+    val result = ArrayList<FeedEntry>(videos.size + shelves.size)
+    videos.forEachIndexed { index, video ->
+        result += FeedEntry.Video(video)
+        val atShelfSlot = index + 1 >= FIRST_SHELF_AFTER && (index + 1 - FIRST_SHELF_AFTER) % SHELF_EVERY == 0
+        if (atShelfSlot && shelves.isNotEmpty()) result += shelves.removeAt(0)
+    }
+    return result + shelves // few videos: the rest of the shelves go at the end
+}
+
+/** "Shorts" heading and a row of tall cards you swipe sideways. */
+@Composable
+private fun ShortsShelf(items: List<VideoItem>, onClick: (VideoItem) -> Unit) {
+    Column {
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Rounded.PlayArrow, null, Modifier.size(28.dp), tint = MaterialTheme.colorScheme.primary)
+            Text(
+                stringResource(R.string.nav_shorts),
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(start = 6.dp),
+            )
+        }
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            items(items, key = { it.id }) { ShortCard(it, onClick = { onClick(it) }) }
+        }
+    }
+}
+
+@Composable
+private fun ShortCard(item: VideoItem, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .width(168.dp)
+            .aspectRatio(9f / 16f)
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .clickable(onClick = onClick),
+    ) {
+        AsyncImage(
+            model = item.thumb,
+            contentDescription = item.title,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+        )
+        Box(
+            Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(96.dp)
+                .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.75f)))),
+        )
+        Text(
+            item.title,
+            color = Color.White,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.align(Alignment.BottomStart).padding(10.dp),
+        )
     }
 }
 

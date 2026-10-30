@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.danitube.app.data.VideoRepository
 import com.danitube.app.data.db.VideoEntity
+import com.danitube.app.data.download.VideoShapeDetector
 import com.danitube.app.data.download.VideoStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
@@ -23,6 +24,8 @@ data class VideoItem(
     /** null for a streamed YouTube video, which is resolved when it plays. */
     val video: Uri?,
     val isStream: Boolean = false,
+    /** Vertical and short: shown in the Shorts shelf instead of as a wide card. */
+    val isShort: Boolean = false,
     val playCount: Int = 0,
 )
 
@@ -30,7 +33,13 @@ data class VideoItem(
 class LibraryViewModel @Inject constructor(
     private val repository: VideoRepository,
     catalog: VideoCatalog,
+    shapes: VideoShapeDetector,
 ) : ViewModel() {
+
+    init {
+        // Sorts older videos into Shorts; the feed updates by itself as each one is read.
+        viewModelScope.launch { shapes.fillMissing() }
+    }
 
     /** null while the first database read is pending, so the UI doesn't flash the empty state. */
     val videos: StateFlow<List<VideoItem>?> = catalog.items
@@ -60,5 +69,6 @@ fun VideoEntity.toItem(storage: VideoStorage): VideoItem? {
         thumb = thumbFile?.let(storage::uri),
         video = video,
         playCount = playCount,
+        isShort = isShort == true,
     )
 }

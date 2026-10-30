@@ -74,6 +74,7 @@ class VideoCatalog @Inject constructor(
         video = null,
         playCount = playCount,
         isStream = true,
+        isShort = isShort,
     )
 
     private companion object {

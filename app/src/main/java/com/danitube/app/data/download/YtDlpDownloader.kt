@@ -31,6 +31,7 @@ data class VideoDetails(
     val tags: List<String>,
     val ageLimit: Int,
     val isLive: Boolean,
+    val isShort: Boolean,
 )
 
 /** One YouTube search hit. */
@@ -149,6 +150,7 @@ class YtDlpDownloader @Inject constructor(
                 tags = parseTags(json),
                 ageLimit = json.optInt("age_limit", 0),
                 isLive = json.optBoolean("is_live", false) || json.optString("live_status") == "is_live",
+                isShort = VideoEntity.shapeIsShort(json.optInt("width"), json.optInt("height"), json.optInt("duration")) == true,
             )
         }
     }
@@ -239,6 +241,7 @@ class YtDlpDownloader @Inject constructor(
                     addedAt = now,
                     channel = parseChannel(info),
                     tags = VideoEntity.joinTags(parseTags(info)),
+                    isShort = VideoEntity.shapeIsShort(info.optInt("width"), info.optInt("height"), info.optInt("duration")),
                 )
             }
             json.delete()

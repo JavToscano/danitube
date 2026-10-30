@@ -91,6 +91,7 @@ class BackupManager @Inject constructor(
                 lastPlayedAt = e.optLong("lastPlayedAt"),
                 channel = e.optString("channel").ifEmpty { null },
                 tags = if (e.has("tags")) e.getString("tags") else null,
+                isShort = if (e.has("isShort")) e.getBoolean("isShort") else null,
             )
         }
         dao.upsert(added)
@@ -131,7 +132,10 @@ class BackupManager @Inject constructor(
                     .put("playCount", v.playCount)
                     .put("lastPlayedAt", v.lastPlayedAt)
                     .put("channel", v.channel ?: "")
-                    .apply { v.tags?.let { put("tags", it) } },
+                    .apply {
+                        v.tags?.let { put("tags", it) }
+                        v.isShort?.let { put("isShort", it) }
+                    },
             )
         }
         dir.findFile(VideoStorage.MANIFEST)?.delete()
