@@ -1,51 +1,123 @@
 name: Release
 
-# Push a tag like v0.2.0 to build a signed APK and attach it to a GitHub release.
+# Every push to main builds a signed APK, tags it and publishes a GitHub release.
+# The version comes from the commit messages since the last tag (Conventional Commits):
+#   "feat!: ..." or "BREAKING CHANGE" -> major,  "feat: ..." -> minor,  anything else -> patch.
+# A push made only of docs/ci/chore/test/style/build commits does not release.
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
+    paths-ignore: ["**.md"]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Force the version bump (auto reads the commit messages)"
+        type: choice
+        options: [auto, patch, minor, major]
+        default: auto
 
 permissions:
   contents: write
+
+# One release at a time, so two quick merges cannot pick the same version.
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the tags and the history since the last one
+
+      - name: Next version
+        id: version
+        env:
+          FORCED_BUMP: ${{ inputs.bump }}
+        run: |
+          LAST=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || true)
+          if [ -z "$LAST" ]; then
+            BASE=0.1.0; RANGE=HEAD
+          else
+            BASE=${LAST#v}; RANGE="$LAST..HEAD"
+          fi
+          SUBJECTS=$(git log "$RANGE" --format=%s)
+          BODIES=$(git log "$RANGE" --format=%b)
+
+          BUMP=${FORCED_BUMP:-auto}
+          if [ "$BUMP" = auto ]; then
+            if [ -z "$SUBJECTS" ]; then
+              BUMP=none
+            elif echo "$SUBJECTS" | grep -qE '^[a-z]+(\(.+\))?!:' || echo "$BODIES" | grep -q 'BREAKING CHANGE'; then
+              BUMP=major
+            elif echo "$SUBJECTS" | grep -qE '^feat(\(.+\))?:'; then
+              BUMP=minor
+            elif echo "$SUBJECTS" | grep -qvE '^(docs|ci|chore|test|style|build)(\(.+\))?:'; then
+              BUMP=patch
+            else
+              BUMP=none
+            fi
+          fi
+
+          if [ "$BUMP" = none ]; then
+            echo "Nothing to release since ${LAST:-the start}."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          IFS=. read -r MAJOR MINOR PATCH <<< "$BASE"
+          case "$BUMP" in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH + 1)) ;;
+          esac
+          VERSION="$MAJOR.$MINOR.$PATCH"
+          echo "Releasing v$VERSION ($BUMP bump from ${LAST:-nothing})"
+          {
+            echo "release=true"
+            echo "name=$VERSION"
+            echo "code=$((MAJOR * 10000 + MINOR * 100 + PATCH))"
+          } >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-java@v4
+        if: steps.version.outputs.release == 'true'
         with:
           distribution: temurin
           java-version: 17
 
       - uses: gradle/actions/setup-gradle@v4
-
-      - name: Version from the tag
-        run: |
-          TAG="${GITHUB_REF_NAME#v}"
-          IFS=. read -r MAJOR MINOR PATCH <<< "${TAG%%-*}"
-          echo "VERSION_NAME=$TAG" >> "$GITHUB_ENV"
-          echo "VERSION_CODE=$((MAJOR * 10000 + MINOR * 100 + PATCH))" >> "$GITHUB_ENV"
+        if: steps.version.outputs.release == 'true'
 
       - name: Restore the signing key
+        if: steps.version.outputs.release == 'true'
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > "$RUNNER_TEMP/release.jks"
           echo "KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
 
       - name: Test and build
+        if: steps.version.outputs.release == 'true'
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           ./gradlew test assembleRelease \
-            -PversionName="$VERSION_NAME" -PversionCode="$VERSION_CODE"
+            -PversionName="${{ steps.version.outputs.name }}" \
+            -PversionCode="${{ steps.version.outputs.code }}"
+          cp app/build/outputs/apk/release/app-release.apk "DaniTube-${{ steps.version.outputs.name }}.apk"
 
-      - name: Name the APK
-        run: cp app/build/outputs/apk/release/app-release.apk "DaniTube-$VERSION_NAME.apk"
+      # Only after the build passed, so a broken main never leaves a tag behind.
+      - name: Create the tag
+        if: steps.version.outputs.release == 'true'
+        run: |
+          git tag "v${{ steps.version.outputs.name }}"
+          git push origin "v${{ steps.version.outputs.name }}"
 
       - uses: softprops/action-gh-release@v2
+        if: steps.version.outputs.release == 'true'
         with:
-          files: DaniTube-${{ env.VERSION_NAME }}.apk
+          tag_name: v${{ steps.version.outputs.name }}
+          files: DaniTube-${{ steps.version.outputs.name }}.apk
           generate_release_notes: true
