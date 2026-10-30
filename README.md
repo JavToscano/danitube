@@ -13,6 +13,9 @@ The interface is in Spanish. The code and this README are in English.
 
 **For the child**
 - **Home feed** (library videos, with suggested ones mixed in on Wi-Fi) with a large thumbnail, duration and title for every downloaded video.
+- **Shorts shelf**: like YouTube, vertical videos of up to 3 minutes don't appear as wide cards.
+  They are grouped into a *Shorts* shelf of tall cards you swipe sideways, between the regular videos.
+  The app tells them apart by the video's size, also for the ones downloaded before this existed.
 - **Shorts-style player**: full screen, swipe up for the next video, tap to pause, no other
   controls. Videos are shuffled, and the next one starts by itself when one ends.
 - **Portrait by default** with a rotate button (like YouTube's) to switch to landscape and back.

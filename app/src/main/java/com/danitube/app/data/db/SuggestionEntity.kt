@@ -22,6 +22,7 @@ data class SuggestionEntity(
     val status: Int,
     @ColumnInfo(defaultValue = "0") val playCount: Int = 0,
     @ColumnInfo(defaultValue = "0") val lastPlayedAt: Long = 0,
+    @ColumnInfo(defaultValue = "0") val isShort: Boolean = false,
 ) {
     val tagList: List<String> get() = tags.split(VideoEntity.TAG_SEPARATOR).filter { it.isNotBlank() }
 

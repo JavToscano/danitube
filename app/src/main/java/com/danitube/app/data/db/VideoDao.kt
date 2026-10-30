@@ -21,6 +21,13 @@ interface VideoDao {
     @Query("SELECT * FROM videos WHERE tags IS NULL LIMIT :limit")
     suspend fun withoutTags(limit: Int): List<VideoEntity>
 
+    /** Videos whose picture size was never read, so they are not yet sorted into Shorts. */
+    @Query("SELECT * FROM videos WHERE isShort IS NULL")
+    suspend fun withoutShape(): List<VideoEntity>
+
+    @Query("UPDATE videos SET isShort = :isShort WHERE id = :id")
+    suspend fun setShort(id: String, isShort: Boolean)
+
     @Query("UPDATE videos SET channel = :channel, tags = :tags WHERE id = :id")
     suspend fun setMeta(id: String, channel: String?, tags: String)
 

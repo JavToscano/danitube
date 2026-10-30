@@ -99,6 +99,7 @@ class SuggestionEngine @Inject constructor(
                     score = score,
                     addedAt = System.currentTimeMillis(),
                     status = SuggestionEntity.STATUS_SUGGESTED,
+                    isShort = details.isShort,
                 ),
             )
             added++

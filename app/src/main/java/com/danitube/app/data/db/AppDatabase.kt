@@ -5,12 +5,20 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [VideoEntity::class, SuggestionEntity::class], version = 3, exportSchema = false)
+@Database(entities = [VideoEntity::class, SuggestionEntity::class], version = 4, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun videoDao(): VideoDao
     abstract fun suggestionDao(): SuggestionDao
 
     companion object {
+        /** Whether each video is a Short (vertical, up to 3 minutes); old videos are sorted on first run. */
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE videos ADD COLUMN isShort INTEGER")
+                db.execSQL("ALTER TABLE suggestions ADD COLUMN isShort INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         /** Tags and channel per video, and the table of suggested YouTube videos. */
         val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
