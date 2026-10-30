@@ -22,7 +22,11 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.Alignment
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -36,8 +40,10 @@ fun ParentMenuScreen(
     onChangePin: () -> Unit,
     onExitApp: () -> Unit,
     storageViewModel: StorageViewModel = hiltViewModel(),
+    suggestionsViewModel: SuggestionsViewModel = hiltViewModel(),
 ) {
     val storage by storageViewModel.info.collectAsStateWithLifecycle()
+    val suggestionsOn by suggestionsViewModel.enabled.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val button = Modifier.fillMaxWidth().height(56.dp)
     Column(
@@ -65,6 +71,20 @@ fun ParentMenuScreen(
         }
         FilledTonalButton(onClick = onAddVideo, shape = CircleShape, modifier = button) { Text(stringResource(R.string.add_video)) }
         FilledTonalButton(onClick = onManageVideos, shape = CircleShape, modifier = button) { Text(stringResource(R.string.manage_videos)) }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.suggestions_title), style = MaterialTheme.typography.titleMedium)
+                Text(
+                    stringResource(R.string.suggestions_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(checked = suggestionsOn, onCheckedChange = suggestionsViewModel::setEnabled)
+        }
+        if (suggestionsOn) {
+            TextButton(onClick = suggestionsViewModel::searchNow) { Text(stringResource(R.string.suggestions_search_now)) }
+        }
         FilledTonalButton(onClick = onBackup, shape = CircleShape, modifier = button) { Text(stringResource(R.string.backup_title)) }
         Button(onClick = onBackToKidMode, shape = CircleShape, modifier = button) { Text(stringResource(R.string.back_to_app)) }
         FilledTonalButton(onClick = onChangePin, shape = CircleShape, modifier = button) { Text(stringResource(R.string.change_pin)) }

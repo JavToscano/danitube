@@ -89,6 +89,8 @@ class BackupManager @Inject constructor(
                 addedAt = e.optLong("addedAt", System.currentTimeMillis()),
                 playCount = e.optInt("playCount"),
                 lastPlayedAt = e.optLong("lastPlayedAt"),
+                channel = e.optString("channel").ifEmpty { null },
+                tags = if (e.has("tags")) e.getString("tags") else null,
             )
         }
         dao.upsert(added)
@@ -127,7 +129,9 @@ class BackupManager @Inject constructor(
                     .put("thumbFile", v.thumbFile ?: "")
                     .put("addedAt", v.addedAt)
                     .put("playCount", v.playCount)
-                    .put("lastPlayedAt", v.lastPlayedAt),
+                    .put("lastPlayedAt", v.lastPlayedAt)
+                    .put("channel", v.channel ?: "")
+                    .apply { v.tags?.let { put("tags", it) } },
             )
         }
         dir.findFile(VideoStorage.MANIFEST)?.delete()

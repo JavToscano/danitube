@@ -12,9 +12,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import android.net.Uri
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flowOn
 import javax.inject.Inject
 
 /** A video ready to display, with where its files are resolved. */
@@ -23,20 +20,24 @@ data class VideoItem(
     val title: String,
     val durationSec: Int,
     val thumb: Uri?,
-    val video: Uri,
+    /** null for a streamed YouTube video, which is resolved when it plays. */
+    val video: Uri?,
+    val isStream: Boolean = false,
     val playCount: Int = 0,
 )
 
 @HiltViewModel
 class LibraryViewModel @Inject constructor(
     private val repository: VideoRepository,
-    private val storage: VideoStorage,
+    catalog: VideoCatalog,
 ) : ViewModel() {
 
     /** null while the first database read is pending, so the UI doesn't flash the empty state. */
-    val videos: StateFlow<List<VideoItem>?> = combine(repository.videos, storage.version) { list, _ -> list }
-        .map { list -> list.mapNotNull { it.toItem(storage) } }
-        .flowOn(Dispatchers.IO) // resolving a Uri may list the library folder
+    val videos: StateFlow<List<VideoItem>?> = catalog.items
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** Everything, for the parent's list (suggested YouTube videos included). */
+    val managed: StateFlow<List<VideoItem>?> = catalog.managed
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** Most-played first; only videos she has actually played. */

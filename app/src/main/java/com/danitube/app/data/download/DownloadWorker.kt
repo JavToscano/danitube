@@ -41,7 +41,7 @@ class DownloadWorker @AssistedInject constructor(
                 // The download is done either way; a full or unplugged library folder must not fail
                 // it. Videos that could not move stay playable from the app's private storage.
                 runCatching { backup.store(videos) }
-                repository.add(videos)
+                repository.addDownloaded(videos)
                 runCatching { backup.sync() }
                 Result.success()
             }

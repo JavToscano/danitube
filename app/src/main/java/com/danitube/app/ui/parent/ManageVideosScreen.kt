@@ -44,7 +44,7 @@ import com.danitube.app.ui.library.VideoItem
 /** Parent-only list of videos with delete. */
 @Composable
 fun ManageVideosScreen(onClose: () -> Unit, viewModel: LibraryViewModel = hiltViewModel()) {
-    val videos by viewModel.videos.collectAsStateWithLifecycle()
+    val videos by viewModel.managed.collectAsStateWithLifecycle()
     var pendingDelete by remember { mutableStateOf<VideoItem?>(null) }
 
     Column(
@@ -77,13 +77,21 @@ fun ManageVideosScreen(onClose: () -> Unit, viewModel: LibraryViewModel = hiltVi
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.size(width = 96.dp, height = 54.dp).background(MaterialTheme.colorScheme.surfaceVariant),
                         )
-                        Text(
-                            item.title,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                            style = MaterialTheme.typography.titleSmall,
-                            modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
-                        )
+                        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                            Text(
+                                item.title,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                style = MaterialTheme.typography.titleSmall,
+                            )
+                            if (item.isStream) {
+                                Text(
+                                    stringResource(R.string.suggested_label),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                        }
                         IconButton(onClick = { pendingDelete = item }) {
                             Icon(Icons.Rounded.Delete, stringResource(R.string.delete), tint = MaterialTheme.colorScheme.error)
                         }

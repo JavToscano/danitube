@@ -62,6 +62,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
@@ -85,6 +86,7 @@ fun PlayerScreen(
 ) {
     LaunchedEffect(startId, favoritesOnly) { viewModel.start(startId, favoritesOnly) }
     val queue by viewModel.queue.collectAsStateWithLifecycle()
+    val unmetered by viewModel.unmetered.collectAsStateWithLifecycle()
 
     ImmersiveMode()
     // Back goes to the library (harmless); the library itself swallows back, so she can't leave the app.
@@ -94,12 +96,26 @@ fun PlayerScreen(
     if (items.isNullOrEmpty()) {
         Box(Modifier.fillMaxSize().background(Color.Black))
     } else {
-        key(items) { ShortsPager(items, onPlayed = viewModel::recordPlay) }
+        key(items) {
+            ShortsPager(
+                items,
+                unmetered = unmetered,
+                onPlayed = viewModel::recordPlay,
+                resolveStream = viewModel::streamUrl,
+                onStreamFailed = viewModel::streamFailed,
+            )
+        }
     }
 }
 
 @Composable
-private fun ShortsPager(items: List<VideoItem>, onPlayed: (String) -> Unit) {
+private fun ShortsPager(
+    items: List<VideoItem>,
+    unmetered: Boolean,
+    onPlayed: (String) -> Unit,
+    resolveStream: suspend (String) -> String?,
+    onStreamFailed: () -> Unit,
+) {
     val size = items.size
     val scope = rememberCoroutineScope()
     val activity = LocalView.current.context as Activity
@@ -129,6 +145,9 @@ private fun ShortsPager(items: List<VideoItem>, onPlayed: (String) -> Unit) {
                 isCurrent = page == pagerState.currentPage,
                 onEnded = { scope.launch { pagerState.animateScrollToPage(page + 1) } },
                 onPlayed = onPlayed,
+                unmetered = unmetered,
+                resolveStream = resolveStream,
+                onStreamFailed = onStreamFailed,
             )
         }
         // Above the pager, so tapping it does not pause the video.
@@ -148,21 +167,40 @@ private fun ShortsPager(items: List<VideoItem>, onPlayed: (String) -> Unit) {
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
-private fun VideoPage(item: VideoItem, isCurrent: Boolean, onEnded: () -> Unit, onPlayed: (String) -> Unit) {
+private fun VideoPage(
+    item: VideoItem,
+    isCurrent: Boolean,
+    onEnded: () -> Unit,
+    onPlayed: (String) -> Unit,
+    unmetered: Boolean,
+    resolveStream: suspend (String) -> String?,
+    onStreamFailed: () -> Unit,
+) {
     val context = LocalContext.current
     val player = remember(item.id) {
         ExoPlayer.Builder(context).build().apply {
-            setMediaItem(MediaItem.fromUri(item.video))
-            prepare()
+            // A streamed video gets its media below, once its link is known and Wi-Fi is confirmed.
+            item.video?.let {
+                setMediaItem(MediaItem.fromUri(it))
+                prepare()
+            }
         }
     }
     val currentOnEnded by rememberUpdatedState(onEnded)
     val currentIsCurrent by rememberUpdatedState(isCurrent)
+    val currentOnStreamFailed by rememberUpdatedState(onStreamFailed)
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             // Only the visible video advances the feed.
             override fun onPlaybackStateChanged(state: Int) {
                 if (state == Player.STATE_ENDED && currentIsCurrent) currentOnEnded()
+            }
+
+            // A stream that cannot play (link expired, signal lost) is skipped, not shown broken.
+            override fun onPlayerError(error: PlaybackException) {
+                if (!item.isStream) return
+                currentOnStreamFailed()
+                if (currentIsCurrent) currentOnEnded()
             }
         }
         player.addListener(listener)
@@ -170,6 +208,27 @@ private fun VideoPage(item: VideoItem, isCurrent: Boolean, onEnded: () -> Unit, 
             player.removeListener(listener)
             player.release()
         }
+    }
+
+    // Streamed videos: only on Wi-Fi. Off Wi-Fi they never start, and the visible one is skipped.
+    if (item.isStream) {
+        LaunchedEffect(item.id, unmetered) {
+            if (!unmetered) {
+                // Stop loading too: nothing may keep downloading over mobile data.
+                player.stop()
+                player.clearMediaItems()
+            } else if (player.mediaItemCount == 0) {
+                val url = resolveStream(item.id)
+                if (url != null) {
+                    player.setMediaItem(MediaItem.fromUri(url))
+                    player.prepare()
+                } else {
+                    currentOnStreamFailed()
+                    if (currentIsCurrent) currentOnEnded()
+                }
+            }
+        }
+        LaunchedEffect(isCurrent, unmetered) { if (isCurrent && !unmetered) currentOnEnded() }
     }
 
     // A video counts as played once it has been on screen for a few seconds (feeds Favoritos).
