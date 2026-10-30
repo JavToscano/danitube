@@ -15,4 +15,15 @@ data class VideoEntity(
     val addedAt: Long,
     @ColumnInfo(defaultValue = "0") val playCount: Int = 0,
     @ColumnInfo(defaultValue = "0") val lastPlayedAt: Long = 0,
-)
+    /** YouTube channel; null until known (videos downloaded before suggestions existed). */
+    val channel: String? = null,
+    /** Tags joined by [TAG_SEPARATOR]; null until fetched, "" when the video has none. */
+    val tags: String? = null,
+) {
+    val tagList: List<String> get() = tags.orEmpty().split(TAG_SEPARATOR).filter { it.isNotBlank() }
+
+    companion object {
+        const val TAG_SEPARATOR = "\n"
+        fun joinTags(tags: List<String>) = tags.joinToString(TAG_SEPARATOR)
+    }
+}

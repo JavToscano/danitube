@@ -22,6 +22,17 @@ import javax.inject.Singleton
 
 data class LinkPreview(val title: String, val thumbnailUrl: String?, val durationSec: Int)
 
+/** What yt-dlp knows about one video; used to judge and to learn from it. */
+data class VideoDetails(
+    val id: String,
+    val title: String,
+    val channel: String?,
+    val durationSec: Int,
+    val tags: List<String>,
+    val ageLimit: Int,
+    val isLive: Boolean,
+)
+
 /** One YouTube search hit. */
 data class SearchResult(
     val id: String,
@@ -121,12 +132,54 @@ class YtDlpDownloader @Inject constructor(
             }
         }
 
+    /** Title, channel, tags and safety flags of one video (no download). */
+    suspend fun details(id: String): VideoDetails = withContext(Dispatchers.IO) {
+        ensureInit()
+        withUpdateRetry {
+            val request = YoutubeDLRequest("https://www.youtube.com/watch?v=$id").apply {
+                addOption("--dump-json")
+                addOption("--no-playlist")
+            }
+            val json = JSONObject(YoutubeDL.getInstance().execute(request).out.lineSequence().first { it.startsWith("{") })
+            VideoDetails(
+                id = id,
+                title = json.optString("title", id),
+                channel = parseChannel(json),
+                durationSec = json.optInt("duration", 0),
+                tags = parseTags(json),
+                ageLimit = json.optInt("age_limit", 0),
+                isLive = json.optBoolean("is_live", false) || json.optString("live_status") == "is_live",
+            )
+        }
+    }
+
+    /** A direct link to stream the video (one muxed mp4, up to 720p). It expires after some hours. */
+    suspend fun streamUrl(id: String): String = withContext(Dispatchers.IO) {
+        ensureInit()
+        withUpdateRetry {
+            val request = YoutubeDLRequest("https://www.youtube.com/watch?v=$id").apply {
+                addOption("-f", STREAM_FORMAT)
+                addOption("--no-playlist")
+                addOption("-g")
+            }
+            YoutubeDL.getInstance().execute(request).out.lineSequence().first { it.startsWith("http") }
+        }
+    }
+
+    private fun parseChannel(json: JSONObject): String? =
+        json.optString("channel").ifEmpty { json.optString("uploader") }.ifEmpty { null }
+
+    private fun parseTags(json: JSONObject): List<String> {
+        val array = json.optJSONArray("tags") ?: return emptyList()
+        return (0 until array.length()).map { array.getString(it) }
+    }
+
     private fun parseResult(json: JSONObject): SearchResult {
         val id = json.getString("id")
         return SearchResult(
             id = id,
             title = json.optString("title", id),
-            channel = (json.optString("channel").ifEmpty { json.optString("uploader") }).ifEmpty { null },
+            channel = parseChannel(json),
             durationSec = json.optInt("duration", 0),
             thumbnailUrl = "https://i.ytimg.com/vi/$id/mqdefault.jpg",
         )
@@ -184,6 +237,8 @@ class YtDlpDownloader @Inject constructor(
                     videoFile = mp4,
                     thumbFile = thumb,
                     addedAt = now,
+                    channel = parseChannel(info),
+                    tags = VideoEntity.joinTags(parseTags(info)),
                 )
             }
             json.delete()
@@ -194,6 +249,7 @@ class YtDlpDownloader @Inject constructor(
     private companion object {
         const val TAG = "YtDlpDownloader"
         const val SEARCH_RESULTS = 20
+        const val STREAM_FORMAT = "best[height<=720][ext=mp4]/best[ext=mp4]/best"
         // Prefer a single mp4 up to 720p (no merge needed); fall back to merging; last resort anything.
         const val UPDATE_COOLDOWN_MS = 10 * 60 * 1000L
         const val FORMAT =

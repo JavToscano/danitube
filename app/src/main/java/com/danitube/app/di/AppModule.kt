@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.work.WorkManager
 import com.danitube.app.data.db.AppDatabase
+import com.danitube.app.data.db.SuggestionDao
 import com.danitube.app.data.db.VideoDao
 import dagger.Module
 import dagger.Provides
@@ -18,8 +19,11 @@ object AppModule {
     @Provides @Singleton
     fun database(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, "danitube.db")
-            .addMigrations(AppDatabase.MIGRATION_1_2)
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3)
             .build()
+
+    @Provides
+    fun suggestionDao(db: AppDatabase): SuggestionDao = db.suggestionDao()
 
     @Provides
     fun videoDao(db: AppDatabase): VideoDao = db.videoDao()

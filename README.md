@@ -12,7 +12,7 @@ The interface is in Spanish. The code and this README are in English.
 ## Features
 
 **For the child**
-- **Home feed** with a large thumbnail, duration and title for every downloaded video.
+- **Home feed** (library videos, with suggested ones mixed in on Wi-Fi) with a large thumbnail, duration and title for every downloaded video.
 - **Shorts-style player**: full screen, swipe up for the next video, tap to pause, no other
   controls. Videos are shuffled, and the next one starts by itself when one ends.
 - **Portrait by default** with a rotate button (like YouTube's) to switch to landscape and back.
@@ -24,6 +24,12 @@ The interface is in Spanish. The code and this README are in English.
 - Back never leaves the app from the home screen.
 
 **For the parent** (press and hold the logo, then enter the PIN)
+- **Suggested videos**: the app learns from the tags and channels of the library (videos she
+  plays count more). Once a day, on Wi-Fi only, it searches YouTube for similar videos, skips live,
+  age-restricted and long ones, and keeps the best as suggestions. Suggestions are streamed in the
+  same feed and player, and up to 3 a day are downloaded into the library for good. Nothing streams
+  or downloads on mobile data. The parent area has a switch, a *search now* button, and delete
+  (a deleted suggestion is never suggested again).
 - **Search and pick**: in *Agregar video*, type what she asked for (for example "gugu gaga") and
   tap *Buscar en YouTube*. A list of results appears with thumbnail, duration and channel; tick
   the ones you want and download them together. Videos already in the library are greyed out.
@@ -85,6 +91,7 @@ app/src/main/java/com/danitube/app/
 │   ├── PinStore.kt           Salted-hash PIN in SharedPreferences
 │   ├── VideoRepository.kt
 │   ├── db/                   Room: VideoEntity, VideoDao, AppDatabase (+ migration 1→2)
+│   ├── suggest/              SuggestionEngine (taste profile, daily search), worker, Wi-Fi monitor, switch
 │   └── download/             YoutubeLink parser, YtDlpDownloader, DownloadWorker,
 │                             DownloadScheduler, YtDlpUpdateWorker, VideoStorage
 ├── di/AppModule.kt
@@ -110,6 +117,12 @@ fails (then retries once).
 `MainActivity` and asks for the PIN before showing anything.
 
 ## Known limitations
+
+- Suggestions are picked by tags with no human review. Videos are filtered for live streams, age
+  restrictions and length, but YouTube has no "made for kids" filter, so check *Administrar videos*
+  now and then and delete anything that doesn't fit.
+- Videos downloaded before suggestions existed have no tags; the app fetches them 10 per day.
+- Streaming needs yt-dlp to work, so it breaks whenever downloads break.
 
 - Nothing stops the phone's Home or Recents buttons, so she can leave the app. Screen pinning was
   tried and removed. A silent kiosk (device-owner mode) would need a one-time `adb` setup.

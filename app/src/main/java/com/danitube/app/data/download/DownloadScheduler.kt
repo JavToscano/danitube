@@ -18,12 +18,17 @@ class DownloadScheduler @Inject constructor(private val workManager: WorkManager
     /**
      * Queues a download. Each link is its own job (so one can be cancelled without touching the
      * others) and the downloader runs them one at a time. A link that is already queued or
-     * running is ignored; one that failed or was cancelled can be queued again.
+     * running is ignored; one that failed or was cancelled can be queued again. With [unmeteredOnly]
+     * it waits for Wi-Fi (used by auto-downloads); manual downloads go over any connection.
      */
-    fun enqueue(link: YoutubeLink) {
+    fun enqueue(link: YoutubeLink, unmeteredOnly: Boolean = false) {
         val request = OneTimeWorkRequestBuilder<DownloadWorker>()
             .setInputData(workDataOf(DownloadWorker.KEY_URL to link.url, DownloadWorker.KEY_PLAYLIST to link.isPlaylist))
-            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            .setConstraints(
+                Constraints.Builder()
+                    .setRequiredNetworkType(if (unmeteredOnly) NetworkType.UNMETERED else NetworkType.CONNECTED)
+                    .build(),
+            )
             .addTag(DownloadWorker.TAG)
             .addTag(link.url)
             .apply { if (link.isPlaylist) addTag(DownloadWorker.TAG_PLAYLIST) }

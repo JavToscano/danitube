@@ -70,6 +70,12 @@
     <string name="retry">Reintentar</string>
     <string name="status_preparing">Preparando…</string>
 
+    <!-- Sugeridos -->
+    <string name="suggestions_title">Videos sugeridos</string>
+    <string name="suggestions_hint">Busca videos parecidos a los que ve y los reproduce o descarga solo con Wi-Fi, nunca con datos móviles</string>
+    <string name="suggestions_search_now">Buscar sugerencias ahora</string>
+    <string name="suggested_label">Sugerido de YouTube</string>
+
     <!-- Pestañas -->
     <string name="nav_favorites">Favoritos</string>
     <string name="favorites_empty_title">Aún no hay favoritos</string>

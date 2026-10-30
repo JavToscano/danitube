@@ -9,6 +9,7 @@ import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.danitube.app.data.download.YtDlpUpdateWorker
+import com.danitube.app.data.suggest.SuggestionWorker
 import dagger.hilt.android.HiltAndroidApp
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -28,5 +29,14 @@ class DaniTubeApp : Application(), Configuration.Provider {
             .build()
         WorkManager.getInstance(this)
             .enqueueUniquePeriodicWork(YtDlpUpdateWorker.NAME, ExistingPeriodicWorkPolicy.KEEP, request)
+
+        // Looks for videos like the ones she watches; Wi-Fi only, and not while the battery is low.
+        val suggestions = PeriodicWorkRequestBuilder<SuggestionWorker>(1, TimeUnit.DAYS)
+            .setConstraints(
+                Constraints.Builder().setRequiredNetworkType(NetworkType.UNMETERED).setRequiresBatteryNotLow(true).build(),
+            )
+            .build()
+        WorkManager.getInstance(this)
+            .enqueueUniquePeriodicWork(SuggestionWorker.NAME, ExistingPeriodicWorkPolicy.KEEP, suggestions)
     }
 }

@@ -17,6 +17,13 @@ interface VideoDao {
     @Query("SELECT * FROM videos")
     suspend fun getAll(): List<VideoEntity>
 
+    /** Videos whose tags were never fetched (downloaded before suggestions existed). */
+    @Query("SELECT * FROM videos WHERE tags IS NULL LIMIT :limit")
+    suspend fun withoutTags(limit: Int): List<VideoEntity>
+
+    @Query("UPDATE videos SET channel = :channel, tags = :tags WHERE id = :id")
+    suspend fun setMeta(id: String, channel: String?, tags: String)
+
     @Query("UPDATE videos SET playCount = playCount + 1, lastPlayedAt = :now WHERE id = :id")
     suspend fun recordPlay(id: String, now: Long)
 
