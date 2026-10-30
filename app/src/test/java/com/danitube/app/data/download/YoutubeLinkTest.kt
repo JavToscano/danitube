@@ -38,4 +38,19 @@ class YoutubeLinkTest {
         assertNull(YoutubeLink.parse("hello"))
         assertNull(YoutubeLink.parse(""))
     }
+
+    @Test fun parsesAPastedList() {
+        val links = YoutubeLink.parseAll(
+            """
+            https://youtu.be/dQw4w9WgXcQ
+            https://example.com/nope
+            https://www.youtube.com/shorts/abcdefghijk
+            https://www.youtube.com/watch?v=dQw4w9WgXcQ
+            """.trimIndent(),
+        )
+        assertEquals(
+            listOf("https://www.youtube.com/watch?v=dQw4w9WgXcQ", "https://www.youtube.com/watch?v=abcdefghijk"),
+            links.map { it.url },
+        )
+    }
 }

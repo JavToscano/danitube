@@ -11,6 +11,7 @@
     <string name="clear">Borrar</string>
     <string name="no_results">Sin resultados</string>
     <string name="back">Atrás</string>
+    <string name="rotate_screen">Girar pantalla</string>
     <string name="cancel">Cancelar</string>
 
     <!-- Biblioteca -->
@@ -19,8 +20,13 @@
 
     <!-- Agregar video -->
     <string name="add_video">Agregar video</string>
-    <string name="youtube_link">Enlace de YouTube</string>
-    <string name="youtube_link_hint">Un video o una lista de reproducción completa</string>
+    <string name="youtube_link">Buscar o pegar enlaces</string>
+    <string name="youtube_link_hint">Escribe qué buscar, o pega enlaces de YouTube (uno por línea)</string>
+    <string name="search_youtube">Buscar en YouTube</string>
+    <string name="download_selected">Descargar %1$d seleccionados</string>
+    <string name="already_downloaded">Ya descargado</string>
+    <string name="error_search_failed">No se pudo buscar</string>
+    <string name="download_many">Descargar %1$d enlaces</string>
     <string name="paste">Pegar</string>
     <string name="download">Descargar</string>
     <string name="download_playlist">Descargar lista</string>
@@ -31,7 +37,6 @@
     <string name="status_done">Listo</string>
     <string name="status_failed">Error: %1$s</string>
     <string name="status_cancelled">Cancelada</string>
-    <string name="error_not_youtube_link">Eso no parece un enlace de YouTube</string>
     <string name="error_preview_failed">No se pudo cargar el video</string>
     <string name="error_nothing_downloaded">No se descargó nada</string>
     <string name="error_download_failed">Falló la descarga</string>
@@ -75,13 +80,10 @@
     </plurals>
 
     <!-- Copia de seguridad -->
-    <string name="backup_title">Copia de seguridad</string>
-    <string name="backup_description">Guarda los videos en una carpeta (por ejemplo en Descargas, una memoria USB o una carpeta sincronizada) para no perderlos si desinstalas la app o cambias de teléfono. Para recuperarlos, elige esa misma carpeta en \"Restaurar\".</string>
-    <string name="backup_action">Guardar copia en una carpeta</string>
-    <string name="restore_action">Restaurar desde una carpeta</string>
-    <string name="backup_running">Copiando… %1$d de %2$d</string>
-    <string name="backup_done">Copia lista: %1$d videos</string>
-    <string name="restore_done">Restaurados: %1$d videos</string>
-    <string name="backup_not_found">No se encontró una copia en esa carpeta</string>
+    <string name="backup_title">Carpeta de videos</string>
+    <string name="backup_description">Elige una carpeta fuera de la app (por ejemplo en Descargas, una memoria USB o una carpeta sincronizada). Los videos se guardan ahí y no ocupan espacio dos veces, así no se pierden al actualizar o desinstalar la app. Después de reinstalar, elige la misma carpeta y los videos vuelven solos.</string>
+    <string name="backup_action">Elegir carpeta de videos</string>
+    <string name="backup_running">Moviendo… %1$d de %2$d</string>
+    <string name="backup_done">Listo: %1$d videos en la carpeta</string>
     <string name="backup_error">No se pudo completar: %1$s</string>
 </resources>

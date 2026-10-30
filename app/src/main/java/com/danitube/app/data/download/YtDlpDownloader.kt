@@ -5,6 +5,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.CancellationException
 import android.content.Context
+import android.util.Log
 import com.danitube.app.data.db.VideoEntity
 import com.yausername.ffmpeg.FFmpeg
 import com.yausername.youtubedl_android.YoutubeDL
@@ -20,6 +21,17 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 data class LinkPreview(val title: String, val thumbnailUrl: String?, val durationSec: Int)
+
+/** One YouTube search hit. */
+data class SearchResult(
+    val id: String,
+    val title: String,
+    val channel: String?,
+    val durationSec: Int,
+    val thumbnailUrl: String,
+) {
+    val link: YoutubeLink get() = YoutubeLink("https://www.youtube.com/watch?v=$id", isPlaylist = false)
+}
 
 @Singleton
 class YtDlpDownloader @Inject constructor(
@@ -43,7 +55,9 @@ class YtDlpDownloader @Inject constructor(
 
     private fun updateLocked(): Boolean = runCatching {
         YoutubeDL.getInstance().updateYoutubeDL(context, YoutubeDL.UpdateChannel.NIGHTLY)
-    }.onSuccess { lastUpdateMs = System.currentTimeMillis() }.isSuccess
+    }.onSuccess { lastUpdateMs = System.currentTimeMillis() }
+        .onFailure { Log.w(TAG, "yt-dlp update failed", it) }
+        .isSuccess
 
     /** Unpacks the bundled yt-dlp/ffmpeg on first use and updates it once; cheap afterwards. */
     private fun ensureInit() = synchronized(initLock) {
@@ -88,6 +102,34 @@ class YtDlpDownloader @Inject constructor(
                 durationSec = info.duration,
             )
         }
+    }
+
+    /** The first [count] YouTube results for [query]; titles only, nothing is downloaded. */
+    suspend fun search(query: String, count: Int = SEARCH_RESULTS): List<SearchResult> =
+        withContext(Dispatchers.IO) {
+            ensureInit()
+            withUpdateRetry {
+                val request = YoutubeDLRequest("ytsearch$count:$query").apply {
+                    addOption("--flat-playlist")
+                    addOption("--dump-json") // one json line per result
+                }
+                YoutubeDL.getInstance().execute(request).out.lineSequence()
+                    .filter { it.startsWith("{") }
+                    .mapNotNull { line -> runCatching { parseResult(JSONObject(line)) }.getOrNull() }
+                    .distinctBy { it.id }
+                    .toList()
+            }
+        }
+
+    private fun parseResult(json: JSONObject): SearchResult {
+        val id = json.getString("id")
+        return SearchResult(
+            id = id,
+            title = json.optString("title", id),
+            channel = (json.optString("channel").ifEmpty { json.optString("uploader") }).ifEmpty { null },
+            durationSec = json.optInt("duration", 0),
+            thumbnailUrl = "https://i.ytimg.com/vi/$id/mqdefault.jpg",
+        )
     }
 
     /**
@@ -150,6 +192,8 @@ class YtDlpDownloader @Inject constructor(
     }
 
     private companion object {
+        const val TAG = "YtDlpDownloader"
+        const val SEARCH_RESULTS = 20
         // Prefer a single mp4 up to 720p (no merge needed); fall back to merging; last resort anything.
         const val UPDATE_COOLDOWN_MS = 10 * 60 * 1000L
         const val FORMAT =

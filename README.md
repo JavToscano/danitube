@@ -15,8 +15,8 @@ The interface is in Spanish. The code and this README are in English.
 - **Home feed** with a large thumbnail, duration and title for every downloaded video.
 - **Shorts-style player**: full screen, swipe up for the next video, tap to pause, no other
   controls. Videos are shuffled, and the next one starts by itself when one ends.
-- **Rotates with the video**: vertical videos stay in portrait, horizontal ones switch to
-  landscape. Black bars, like YouTube, never cropping.
+- **Portrait by default** with a rotate button (like YouTube's) to switch to landscape and back.
+  Black bars, never cropping.
 - **Favoritos tab**: the videos she plays most, most-watched first. A video counts as played after
   3 seconds on screen.
 - **Search** over the downloaded videos (it never touches the internet).
@@ -24,12 +24,17 @@ The interface is in Spanish. The code and this README are in English.
 - Back never leaves the app from the home screen.
 
 **For the parent** (press and hold the logo, then enter the PIN)
+- **Search and pick**: in *Agregar video*, type what she asked for (for example "gugu gaga") and
+  tap *Buscar en YouTube*. A list of results appears with thumbnail, duration and channel; tick
+  the ones you want and download them together. Videos already in the library are greyed out.
 - **Agregar video**: paste a link, or use *Share → DaniTube* from the YouTube app or a browser.
-  Works with single videos, Shorts links and whole playlists. A preview is shown before downloading.
+  Works with single videos, Shorts links and whole playlists. Paste several links at once (one
+  per line) to queue them all in one go. A preview of the first one is shown before downloading.
 - **Download queue** with progress, cancel and retry.
 - **Administrar videos**: list with delete.
-- **Copia de seguridad**: copy the videos to a folder you choose (USB, Downloads, a synced folder)
-  and restore them from there, so an uninstall or a new phone doesn't lose them.
+- **Carpeta de videos**: pick a folder outside the app (USB, Downloads, a synced folder). Videos
+  are stored there, not inside the app, so updates and uninstalls don't lose them. After a
+  reinstall, pick the same folder and the library comes back.
 - **Cambiar PIN**, storage used and free space, and *Salir de la app*.
 
 The PIN is created the first time you open the parent area and is stored only as a salted hash.
@@ -45,9 +50,9 @@ up first).
 | Downloads | [youtubedl-android](https://github.com/JunkFood02/youtubedl-android) (yt-dlp + ffmpeg) |
 | Background work | WorkManager (foreground service for downloads, daily yt-dlp update) |
 | Playback | Media3 ExoPlayer |
-| Storage | Room (metadata), app-private files (videos and thumbnails) |
+| Storage | Room (metadata), videos and thumbnails in a parent-picked folder (app-private until one is picked) |
 | Images | Coil |
-| Backup | Storage Access Framework (`DocumentFile`) |
+| Library folder | Storage Access Framework (`DocumentFile`) |
 
 `minSdk` 26, `targetSdk` / `compileSdk` 35.
 
@@ -76,7 +81,7 @@ version. Downloads need an internet connection; playback does not.
 app/src/main/java/com/danitube/app/
 ├── DaniTubeApp.kt            Hilt app, WorkManager config, schedules the daily yt-dlp update
 ├── data/
-│   ├── BackupManager.kt      Backup/restore to a user-picked folder
+│   ├── BackupManager.kt      Library folder: import, move in, video list
 │   ├── PinStore.kt           Salted-hash PIN in SharedPreferences
 │   ├── VideoRepository.kt
 │   ├── db/                   Room: VideoEntity, VideoDao, AppDatabase (+ migration 1→2)
@@ -88,7 +93,7 @@ app/src/main/java/com/danitube/app/
     ├── add/                  Add video screen and ShareActivity (share target)
     ├── library/              Feed grid (Home and Favoritos)
     ├── player/               Shorts pager, ExoPlayer per page
-    ├── parent/               PIN gate, parent menu, manage videos, backup
+    ├── parent/               PIN gate, parent menu, manage videos, folder
     └── theme/
 ```
 
@@ -109,8 +114,8 @@ fails (then retries once).
 - Nothing stops the phone's Home or Recents buttons, so she can leave the app. Screen pinning was
   tried and removed. A silent kiosk (device-owner mode) would need a one-time `adb` setup.
 - The PIN keeps a toddler out; it is not strong protection against an older child.
-- Backups are manual. Videos live in app-private storage, so uninstalling the app deletes them
-  unless you made a backup first.
-- Backup and restore copy files inside the app, so keep it open while they run.
+- Until a folder is picked, videos stay in app-private storage and are lost on uninstall.
+- Switching to a different folder does not move videos already stored in the old one.
+- Moving files into the folder happens inside the app, so keep it open while it runs.
 - yt-dlp can still break between updates if YouTube changes something very recently.
 - The UI text is Spanish only.

@@ -12,6 +12,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
+import com.danitube.app.data.BackupManager
 import com.danitube.app.data.VideoRepository
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
@@ -23,6 +24,7 @@ class DownloadWorker @AssistedInject constructor(
     @Assisted params: WorkerParameters,
     private val downloader: YtDlpDownloader,
     private val repository: VideoRepository,
+    private val backup: BackupManager,
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
@@ -36,7 +38,11 @@ class DownloadWorker @AssistedInject constructor(
             if (videos.isEmpty()) {
                 Result.failure(workDataOf(KEY_ERROR to applicationContext.getString(R.string.error_nothing_downloaded)))
             } else {
+                // The download is done either way; a full or unplugged library folder must not fail
+                // it. Videos that could not move stay playable from the app's private storage.
+                runCatching { backup.store(videos) }
                 repository.add(videos)
+                runCatching { backup.sync() }
                 Result.success()
             }
         } catch (e: CancellationException) {

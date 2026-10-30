@@ -11,16 +11,19 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.io.File
+import android.net.Uri
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 import javax.inject.Inject
 
-/** A video ready to display, with absolute file paths resolved. */
+/** A video ready to display, with where its files are resolved. */
 data class VideoItem(
     val id: String,
     val title: String,
     val durationSec: Int,
-    val thumb: File?,
-    val video: File,
+    val thumb: Uri?,
+    val video: Uri,
     val playCount: Int = 0,
 )
 
@@ -31,8 +34,9 @@ class LibraryViewModel @Inject constructor(
 ) : ViewModel() {
 
     /** null while the first database read is pending, so the UI doesn't flash the empty state. */
-    val videos: StateFlow<List<VideoItem>?> = repository.videos
-        .map { list -> list.map { it.toItem(storage) } }
+    val videos: StateFlow<List<VideoItem>?> = combine(repository.videos, storage.version) { list, _ -> list }
+        .map { list -> list.mapNotNull { it.toItem(storage) } }
+        .flowOn(Dispatchers.IO) // resolving a Uri may list the library folder
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** Most-played first; only videos she has actually played. */
@@ -45,11 +49,15 @@ class LibraryViewModel @Inject constructor(
     }
 }
 
-fun VideoEntity.toItem(storage: VideoStorage) = VideoItem(
-    id = id,
-    title = title,
-    durationSec = durationSec,
-    thumb = thumbFile?.let(storage::file),
-    video = storage.file(videoFile),
-    playCount = playCount,
-)
+/** null when the video's file is gone (e.g. the library folder was emptied or is unplugged). */
+fun VideoEntity.toItem(storage: VideoStorage): VideoItem? {
+    val video = storage.uri(videoFile) ?: return null
+    return VideoItem(
+        id = id,
+        title = title,
+        durationSec = durationSec,
+        thumb = thumbFile?.let(storage::uri),
+        video = video,
+        playCount = playCount,
+    )
+}

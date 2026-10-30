@@ -13,6 +13,7 @@ import javax.inject.Singleton
 class VideoRepository @Inject constructor(
     private val dao: VideoDao,
     private val storage: VideoStorage,
+    private val backup: BackupManager,
 ) {
     val videos: Flow<List<VideoEntity>> = dao.observeAll()
 
@@ -24,9 +25,10 @@ class VideoRepository @Inject constructor(
 
     suspend fun delete(id: String) = withContext(Dispatchers.IO) {
         dao.get(id)?.let { v ->
-            storage.file(v.videoFile).delete()
-            v.thumbFile?.let { storage.file(it).delete() }
+            storage.delete(v.videoFile)
+            v.thumbFile?.let(storage::delete)
         }
         dao.delete(id)
+        runCatching { backup.sync(removedId = id) }
     }
 }

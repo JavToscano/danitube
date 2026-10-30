@@ -18,8 +18,15 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
 import android.app.Activity
-import androidx.compose.foundation.layout.size
 import android.content.pm.ActivityInfo
+import androidx.compose.material3.IconButton
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import com.danitube.app.R
+import androidx.compose.foundation.layout.size
 import android.graphics.Color as AndroidColor
 import android.net.Uri
 import androidx.activity.compose.BackHandler
@@ -56,7 +63,6 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
-import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
@@ -96,20 +102,47 @@ fun PlayerScreen(
 private fun ShortsPager(items: List<VideoItem>, onPlayed: (String) -> Unit) {
     val size = items.size
     val scope = rememberCoroutineScope()
+    val activity = LocalView.current.context as Activity
+    // Portrait until she taps the rotate button, like the one in the YouTube player.
+    var landscape by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(landscape) {
+        activity.requestedOrientation = if (landscape) {
+            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose { activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT }
+    }
     // Start on a page that maps to items[0].
     val pagerState = rememberPagerState(initialPage = LOOP_PAGES / 2 / size * size) { LOOP_PAGES }
 
-    VerticalPager(
-        state = pagerState,
-        beyondViewportPageCount = 1, // next/previous page is prepared before the swipe lands
-        modifier = Modifier.fillMaxSize().background(Color.Black),
-    ) { page ->
-        VideoPage(
-            item = items[page % size],
-            isCurrent = page == pagerState.currentPage,
-            onEnded = { scope.launch { pagerState.animateScrollToPage(page + 1) } },
-            onPlayed = onPlayed,
-        )
+    Box(Modifier.fillMaxSize().background(Color.Black)) {
+        VerticalPager(
+            state = pagerState,
+            beyondViewportPageCount = 1, // next/previous page is prepared before the swipe lands
+            modifier = Modifier.fillMaxSize(),
+        ) { page ->
+            VideoPage(
+                item = items[page % size],
+                isCurrent = page == pagerState.currentPage,
+                onEnded = { scope.launch { pagerState.animateScrollToPage(page + 1) } },
+                onPlayed = onPlayed,
+            )
+        }
+        // Above the pager, so tapping it does not pause the video.
+        IconButton(
+            onClick = { landscape = !landscape },
+            modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 8.dp, bottom = 20.dp),
+        ) {
+            Icon(
+                painterResource(R.drawable.ic_screen_rotation),
+                contentDescription = stringResource(R.string.rotate_screen),
+                tint = Color.White,
+                modifier = Modifier.size(32.dp),
+            )
+        }
     }
 }
 
@@ -119,17 +152,14 @@ private fun VideoPage(item: VideoItem, isCurrent: Boolean, onEnded: () -> Unit, 
     val context = LocalContext.current
     val player = remember(item.id) {
         ExoPlayer.Builder(context).build().apply {
-            setMediaItem(MediaItem.fromUri(Uri.fromFile(item.video)))
+            setMediaItem(MediaItem.fromUri(item.video))
             prepare()
         }
     }
-    var videoSize by remember(player) { mutableStateOf(VideoSize.UNKNOWN) }
     val currentOnEnded by rememberUpdatedState(onEnded)
     val currentIsCurrent by rememberUpdatedState(isCurrent)
     DisposableEffect(player) {
         val listener = object : Player.Listener {
-            override fun onVideoSizeChanged(size: VideoSize) { videoSize = size }
-
             // Only the visible video advances the feed.
             override fun onPlaybackStateChanged(state: Int) {
                 if (state == Player.STATE_ENDED && currentIsCurrent) currentOnEnded()
@@ -147,20 +177,6 @@ private fun VideoPage(item: VideoItem, isCurrent: Boolean, onEnded: () -> Unit, 
         if (isCurrent) {
             delay(PLAY_COUNT_AFTER_MS)
             onPlayed(item.id)
-        }
-    }
-
-    // Rotate the screen to match the video that is on screen (neighbouring pages don't count).
-    val activity = LocalView.current.context as Activity
-    LaunchedEffect(isCurrent, videoSize) {
-        if (isCurrent && videoSize.width > 0 && videoSize.height > 0) {
-            val swapped = videoSize.unappliedRotationDegrees % 180 != 0
-            val landscape = if (swapped) videoSize.height > videoSize.width else videoSize.width > videoSize.height
-            activity.requestedOrientation = if (landscape) {
-                ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-            } else {
-                ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-            }
         }
     }
 
@@ -215,7 +231,6 @@ private fun ImmersiveMode() {
         controller.hide(WindowInsetsCompat.Type.statusBars())
         onDispose {
             controller.show(WindowInsetsCompat.Type.statusBars())
-            (view.context as Activity).requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
     }
 }

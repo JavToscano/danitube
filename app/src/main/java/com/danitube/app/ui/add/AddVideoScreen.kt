@@ -27,6 +27,17 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import com.danitube.app.data.download.SearchResult
+import com.danitube.app.ui.library.formatDuration
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -53,7 +64,7 @@ import androidx.work.WorkInfo
 import coil.compose.AsyncImage
 
 /**
- * Parent-only screen: paste or receive a link, confirm the preview, watch the queue.
+ * Parent-only screen: paste or receive links, or search YouTube and tick videos; watch the queue.
  * [initialText] is the shared text when opened via the Android share sheet.
  */
 @Composable
@@ -64,6 +75,7 @@ fun AddVideoScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val downloads by viewModel.downloads.collectAsStateWithLifecycle()
+    val downloadedIds by viewModel.downloadedIds.collectAsStateWithLifecycle()
     val clipboard = LocalClipboardManager.current
 
     // Android 13+ needs permission to show the download notification; downloads work without it.
@@ -101,7 +113,8 @@ fun AddVideoScreen(
             onValueChange = viewModel::onInput,
             label = { Text(stringResource(R.string.youtube_link)) },
             supportingText = { Text(stringResource(R.string.youtube_link_hint)) },
-            singleLine = true,
+            minLines = 3,
+            maxLines = 8,
             shape = MaterialTheme.shapes.medium,
             trailingIcon = {
                 TextButton(onClick = { clipboard.getText()?.text?.let(viewModel::onInput) }) { Text(stringResource(R.string.paste)) }
@@ -109,38 +122,145 @@ fun AddVideoScreen(
             modifier = Modifier.fillMaxWidth(),
         )
 
-        when (val preview = state.preview) {
-            PreviewState.None -> Unit
-            PreviewState.Loading -> Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(Modifier.size(32.dp))
+        val isSearch = state.links.isEmpty() && state.input.isNotBlank()
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.weight(1f)) {
+            when (val preview = state.preview) {
+                PreviewState.None -> Unit
+                PreviewState.Loading -> item {
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(Modifier.size(32.dp))
+                    }
+                }
+                is PreviewState.Error -> item {
+                    Column {
+                        Text(stringResource(preview.messageRes), color = MaterialTheme.colorScheme.error)
+                        preview.detail?.let {
+                            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+                is PreviewState.Ready -> item { PreviewCard(preview, isPlaylist = state.link?.isPlaylist == true) }
             }
-            is PreviewState.Error -> Column {
-                Text(stringResource(preview.messageRes), color = MaterialTheme.colorScheme.error)
-                preview.detail?.let {
-                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+            if (isSearch) {
+                item {
+                    FilledTonalButton(
+                        onClick = viewModel::search,
+                        enabled = state.search != SearchState.Loading,
+                        shape = CircleShape,
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                    ) {
+                        Icon(Icons.Rounded.Search, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.search_youtube))
+                    }
+                }
+                when (val search = state.search) {
+                    SearchState.None -> Unit
+                    SearchState.Loading -> item {
+                        Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(Modifier.size(32.dp))
+                        }
+                    }
+                    is SearchState.Error -> item {
+                        Column {
+                            Text(stringResource(R.string.error_search_failed), color = MaterialTheme.colorScheme.error)
+                            search.detail?.let {
+                                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                    is SearchState.Results -> if (search.items.isEmpty()) {
+                        item { Text(stringResource(R.string.no_results), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    } else {
+                        items(search.items, key = { "result-${it.id}" }) { result ->
+                            val downloaded = result.id in downloadedIds
+                            SearchResultRow(
+                                result,
+                                checked = result.id in state.selected,
+                                downloaded = downloaded,
+                                onToggle = { if (!downloaded) viewModel.toggle(result.id) },
+                            )
+                        }
+                    }
                 }
             }
-            is PreviewState.Ready -> PreviewCard(preview, isPlaylist = state.link?.isPlaylist == true)
-        }
 
-        Button(
-            onClick = { viewModel.confirm(); viewModel.reset() },
-            enabled = state.preview is PreviewState.Ready,
-            shape = CircleShape,
-            modifier = Modifier.fillMaxWidth().height(56.dp),
-        ) { Text(stringResource(if (state.link?.isPlaylist == true) R.string.download_playlist else R.string.download)) }
-
-        if (downloads.isNotEmpty()) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(R.string.downloads), style = MaterialTheme.typography.titleMedium)
-                TextButton(onClick = viewModel::clearFinished) { Text(stringResource(R.string.clear_finished)) }
-            }
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.weight(1f)) {
+            if (downloads.isNotEmpty()) {
+                item {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text(stringResource(R.string.downloads), style = MaterialTheme.typography.titleMedium)
+                        TextButton(onClick = viewModel::clearFinished) { Text(stringResource(R.string.clear_finished)) }
+                    }
+                }
                 items(downloads, key = { it.id }) {
                     DownloadRow(it, onCancel = { item -> viewModel.cancel(item) }, onRetry = { item -> viewModel.retry(item) })
                 }
             }
         }
+
+        val picked = state.selected.size
+        Button(
+            onClick = { viewModel.confirm(); viewModel.reset() },
+            // With a list of links there is no waiting for the preview of the first one.
+            enabled = if (isSearch) picked > 0 else state.preview is PreviewState.Ready || state.links.size > 1,
+            shape = CircleShape,
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+        ) {
+            Text(
+                when {
+                    isSearch -> stringResource(R.string.download_selected, picked)
+                    state.links.size > 1 -> stringResource(R.string.download_many, state.links.size)
+                    state.link?.isPlaylist == true -> stringResource(R.string.download_playlist)
+                    else -> stringResource(R.string.download)
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun SearchResultRow(result: SearchResult, checked: Boolean, downloaded: Boolean, onToggle: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(enabled = !downloaded, onClick = onToggle)
+            .alpha(if (downloaded) 0.5f else 1f),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Box {
+            AsyncImage(
+                model = result.thumbnailUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .width(128.dp)
+                    .aspectRatio(16f / 9f)
+                    .clip(MaterialTheme.shapes.small)
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+            )
+            if (result.durationSec > 0) {
+                Text(
+                    formatDuration(result.durationSec),
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(4.dp)
+                        .background(Color.Black.copy(alpha = 0.75f), MaterialTheme.shapes.extraSmall)
+                        .padding(horizontal = 4.dp, vertical = 1.dp),
+                )
+            }
+        }
+        Column(Modifier.weight(1f)) {
+            Text(result.title, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            val subtitle = if (downloaded) stringResource(R.string.already_downloaded) else result.channel
+            subtitle?.let {
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        Checkbox(checked = checked || downloaded, onCheckedChange = null, enabled = !downloaded)
     }
 }
 

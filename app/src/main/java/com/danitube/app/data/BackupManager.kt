@@ -1,8 +1,9 @@
 package com.danitube.app.data
 
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
-import androidx.documentfile.provider.DocumentFile
+import com.danitube.app.data.db.VideoDao
 import com.danitube.app.data.db.VideoEntity
 import com.danitube.app.data.download.VideoStorage
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -10,93 +11,112 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
-class BackupNotFoundException : Exception("No backup in that folder")
-
 /**
- * Copies the videos to a folder the parent picks (storage access framework, so it can be a
- * USB drive, an SD card or a cloud-synced folder) and restores them from there. The app's own
- * storage disappears on uninstall; the backup folder does not.
+ * Manages the library folder: a folder the parent picks (storage access framework, so it can be
+ * a USB drive, an SD card or a cloud-synced folder) that holds the videos. The app's own storage
+ * disappears on uninstall; the folder does not. Next to the videos it keeps `videos.json`, the list
+ * the app reads to get the library back after a reinstall.
  */
 @Singleton
 class BackupManager @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val repository: VideoRepository,
+    private val dao: VideoDao,
     private val storage: VideoStorage,
+    private val folder: BackupFolderStore,
 ) {
-    /** Returns how many videos are in the backup afterwards. [onProgress] gets (done, total). */
-    suspend fun backup(tree: Uri, onProgress: (Int, Int) -> Unit): Int = withContext(Dispatchers.IO) {
-        val root = DocumentFile.fromTreeUri(context, tree) ?: error("Folder not available")
-        val dir = root.findFile(DIR_NAME)?.takeIf { it.isDirectory } ?: root.createDirectory(DIR_NAME)
-            ?: error("Could not create the backup folder")
-        val videos = repository.all()
+    /**
+     * Makes [tree] the library folder. Videos already listed there are added to the app, and videos
+     * still in the app's private storage are moved in. Returns how many videos the library has.
+     * [onProgress] gets (done, total) while the private ones move.
+     */
+    suspend fun useFolder(tree: Uri, onProgress: (Int, Int) -> Unit): Int = withContext(Dispatchers.IO) {
+        context.contentResolver.takePersistableUriPermission(
+            tree, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+        )
+        folder.tree = tree
+        storage.invalidate()
+        importListed()
+
+        val videos = dao.getAll()
         videos.forEachIndexed { index, video ->
             onProgress(index, videos.size)
-            copyToBackup(storage.file(video.videoFile), dir, video.videoFile, "video/mp4")
-            video.thumbFile?.let { copyToBackup(storage.file(it), dir, it, "image/jpeg") }
+            moveToLibrary(video)
         }
-        writeManifest(dir, videos)
+        writeManifest()
         onProgress(videos.size, videos.size)
+        storage.invalidate()
         videos.size
     }
 
-    /** Returns how many videos were restored. Works with the picked folder or its parent. */
-    suspend fun restore(tree: Uri, onProgress: (Int, Int) -> Unit): Int = withContext(Dispatchers.IO) {
-        val picked = DocumentFile.fromTreeUri(context, tree) ?: error("Folder not available")
-        val dir = listOfNotNull(picked, picked.findFile(DIR_NAME))
-            .firstOrNull { it.findFile(MANIFEST) != null } ?: throw BackupNotFoundException()
-        val manifest = context.contentResolver.openInputStream(dir.findFile(MANIFEST)!!.uri)!!
-            .use { JSONObject(it.readBytes().decodeToString()) }
-        val entries = manifest.getJSONArray("videos")
+    /** Moves a freshly downloaded video's files into the library. A no-op when no folder is picked. */
+    suspend fun store(videos: List<VideoEntity>) = withContext(Dispatchers.IO) {
+        if (!storage.hasLibrary) return@withContext
+        videos.forEach(::moveToLibrary)
+    }
 
-        val restored = mutableListOf<VideoEntity>()
+    /** Rewrites the list in the library folder. Does nothing when no folder is picked. */
+    suspend fun sync(removedId: String? = null) = withContext(Dispatchers.IO) {
+        if (storage.hasLibrary) writeManifest(removedId)
+    }
+
+    private fun moveToLibrary(video: VideoEntity) {
+        storage.moveToLibrary(video.videoFile, "video/mp4")
+        video.thumbFile?.let { storage.moveToLibrary(it, "image/jpeg") }
+    }
+
+    /** Adds the videos listed in the folder's `videos.json` that the app does not know yet. */
+    private suspend fun importListed() {
+        val dir = storage.libraryDir() ?: return
+        val file = dir.findFile(VideoStorage.MANIFEST) ?: return
+        val entries = readManifest(file.uri) ?: return
+        val known = dao.getAll().map { it.id }.toSet()
+        val added = mutableListOf<VideoEntity>()
         for (i in 0 until entries.length()) {
-            onProgress(i, entries.length())
             val e = entries.getJSONObject(i)
+            val id = e.getString("id")
             val videoFile = e.getString("videoFile")
+            if (id in known || dir.findFile(videoFile) == null) continue
             val thumbFile = e.optString("thumbFile").ifEmpty { null }
-            val video = dir.findFile(videoFile) ?: continue
-            copyFromBackup(video, storage.file(videoFile))
-            thumbFile?.let { name -> dir.findFile(name)?.let { copyFromBackup(it, storage.file(name)) } }
-            restored += VideoEntity(
-                id = e.getString("id"),
+            added += VideoEntity(
+                id = id,
                 title = e.getString("title"),
                 durationSec = e.optInt("durationSec"),
                 videoFile = videoFile,
-                thumbFile = thumbFile?.takeIf { storage.file(it).exists() },
+                thumbFile = thumbFile?.takeIf { dir.findFile(it) != null },
                 addedAt = e.optLong("addedAt", System.currentTimeMillis()),
                 playCount = e.optInt("playCount"),
                 lastPlayedAt = e.optLong("lastPlayedAt"),
             )
         }
-        repository.add(restored)
-        onProgress(entries.length(), entries.length())
-        restored.size
+        dao.upsert(added)
     }
 
-    private fun copyToBackup(source: File, dir: DocumentFile, name: String, mime: String) {
-        if (!source.exists()) return
-        val existing = dir.findFile(name)
-        if (existing != null && existing.length() == source.length()) return // already backed up
-        existing?.delete()
-        val target = dir.createFile(mime, name) ?: error("Could not create $name")
-        context.contentResolver.openOutputStream(target.uri, "w")!!.use { out ->
-            source.inputStream().use { it.copyTo(out) }
-        }
-    }
+    private fun readManifest(uri: Uri): JSONArray? = runCatching {
+        context.contentResolver.openInputStream(uri)!!.use { JSONObject(it.readBytes().decodeToString()) }
+            .getJSONArray("videos")
+    }.getOrNull()
 
-    private fun copyFromBackup(source: DocumentFile, target: File) {
-        if (target.exists() && target.length() == source.length()) return
-        context.contentResolver.openInputStream(source.uri)!!.use { input ->
-            target.outputStream().use { input.copyTo(it) }
-        }
-    }
-
-    private fun writeManifest(dir: DocumentFile, videos: List<VideoEntity>) {
+    /**
+     * Rewrites the list of videos in the library. Entries already there whose files are still in
+     * the folder are kept, so a fresh install that has not imported yet cannot wipe the list.
+     */
+    private suspend fun writeManifest(removedId: String? = null) {
+        val dir = storage.libraryDir(create = true) ?: error("Could not open the video folder")
+        val videos = dao.getAll()
+        val known = videos.map { it.id }.toSet()
         val array = JSONArray()
+        dir.findFile(VideoStorage.MANIFEST)?.let { file ->
+            readManifest(file.uri)?.let { old ->
+                for (i in 0 until old.length()) {
+                    val e = old.getJSONObject(i)
+                    val id = e.getString("id")
+                    if (id !in known && id != removedId && dir.findFile(e.getString("videoFile")) != null) array.put(e)
+                }
+            }
+        }
         videos.forEach { v ->
             array.put(
                 JSONObject()
@@ -110,15 +130,10 @@ class BackupManager @Inject constructor(
                     .put("lastPlayedAt", v.lastPlayedAt),
             )
         }
-        dir.findFile(MANIFEST)?.delete()
-        val target = dir.createFile("application/json", MANIFEST) ?: error("Could not write the backup list")
+        dir.findFile(VideoStorage.MANIFEST)?.delete()
+        val target = dir.createFile("application/json", VideoStorage.MANIFEST) ?: error("Could not write the video list")
         context.contentResolver.openOutputStream(target.uri, "w")!!.use {
             it.write(JSONObject().put("version", 1).put("videos", array).toString().toByteArray())
         }
-    }
-
-    private companion object {
-        const val DIR_NAME = "DaniTube"
-        const val MANIFEST = "videos.json"
     }
 }

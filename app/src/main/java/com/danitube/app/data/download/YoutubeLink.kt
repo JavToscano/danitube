@@ -13,28 +13,32 @@ data class YoutubeLink(val url: String, val isPlaylist: Boolean) {
          * Pulls the first YouTube URL out of free text (the share sheet often sends
          * "Title https://youtu.be/xyz"). Returns null when there is none.
          */
-        fun parse(text: String): YoutubeLink? {
-            for (match in urlRegex.findAll(text)) {
-                val uri = runCatching { URI(match.value.trimEnd('.', ',', ')')) }.getOrNull() ?: continue
-                val host = uri.host?.lowercase() ?: continue
-                if (host !in hosts) continue
-                val query = parseQuery(uri.rawQuery)
-                val segments = uri.path.orEmpty().split('/').filter { it.isNotEmpty() }
+        fun parse(text: String): YoutubeLink? = parseAll(text).firstOrNull()
 
-                val videoId = when {
-                    host == "youtu.be" -> segments.firstOrNull()
-                    segments.firstOrNull() == "watch" -> query["v"]
-                    segments.firstOrNull() in setOf("shorts", "live", "embed") -> segments.getOrNull(1)
-                    else -> null
-                }?.takeIf { idRegex.matches(it) }
-                if (videoId != null) {
-                    return YoutubeLink("https://www.youtube.com/watch?v=$videoId", isPlaylist = false)
-                }
+        /** Every distinct YouTube link in [text], in order; for pasting a whole list at once. */
+        fun parseAll(text: String): List<YoutubeLink> =
+            urlRegex.findAll(text).mapNotNull { parseUrl(it.value) }.distinct().toList()
 
-                val listId = query["list"]?.takeIf { idRegex.matches(it) }
-                if (listId != null && segments.firstOrNull() == "playlist") {
-                    return YoutubeLink("https://www.youtube.com/playlist?list=$listId", isPlaylist = true)
-                }
+        private fun parseUrl(raw: String): YoutubeLink? {
+            val uri = runCatching { URI(raw.trimEnd('.', ',', ')')) }.getOrNull() ?: return null
+            val host = uri.host?.lowercase() ?: return null
+            if (host !in hosts) return null
+            val query = parseQuery(uri.rawQuery)
+            val segments = uri.path.orEmpty().split('/').filter { it.isNotEmpty() }
+
+            val videoId = when {
+                host == "youtu.be" -> segments.firstOrNull()
+                segments.firstOrNull() == "watch" -> query["v"]
+                segments.firstOrNull() in setOf("shorts", "live", "embed") -> segments.getOrNull(1)
+                else -> null
+            }?.takeIf { idRegex.matches(it) }
+            if (videoId != null) {
+                return YoutubeLink("https://www.youtube.com/watch?v=$videoId", isPlaylist = false)
+            }
+
+            val listId = query["list"]?.takeIf { idRegex.matches(it) }
+            if (listId != null && segments.firstOrNull() == "playlist") {
+                return YoutubeLink("https://www.youtube.com/playlist?list=$listId", isPlaylist = true)
             }
             return null
         }
