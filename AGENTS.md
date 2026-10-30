@@ -11,7 +11,8 @@ offline. A daily job also finds similar videos and streams or downloads them, on
 Everything that is not "browse and watch" sits behind a parent PIN.
 
 Personal use only: downloading from YouTube breaks its terms of service. Never add Play Store
-publishing, analytics, ads, accounts or anything that sends data off the phone.
+publishing, analytics, ads, accounts or anything that sends data off the phone. The one exception is
+the update check, which only asks GitHub for the latest release and sends nothing about the user.
 
 ## Stack
 
@@ -49,7 +50,8 @@ app/src/main/java/com/danitube/app/
 │   ├── db/               Room: VideoEntity, SuggestionEntity, DAOs, AppDatabase + migrations
 │   ├── download/         YoutubeLink parser, YtDlpDownloader, DownloadWorker/Scheduler,
 │   │                     VideoStorage, YtDlpUpdateWorker
-│   └── suggest/          SuggestionEngine + worker, UnmeteredNetwork, SuggestionSettings
+│   ├── suggest/          SuggestionEngine + worker, UnmeteredNetwork, SuggestionSettings
+│   └── update/           UpdateManager (GitHub release check, download, verify, install), worker
 ├── di/AppModule.kt
 └── ui/
     ├── MainActivity      Kid mode and the parent screens (simple state, no nav library)
@@ -68,11 +70,18 @@ Parent features go behind `ParentGate`. Back from the home screen is swallowed s
 The app is locked to portrait; the player has a rotate button (like YouTube's) that toggles
 landscape and resets to portrait when she leaves the player.
 
-**Wi-Fi only for streaming and auto-download.** Streaming a suggested video and the daily
-suggestion/auto-download job must never use mobile data or a metered network. Use
+**Wi-Fi only for streaming, auto-download and updates.** Streaming a suggested video, the daily
+suggestion/auto-download job and the app update download must never use mobile data or a metered network. Use
 `UnmeteredNetwork`, and `NetworkType.UNMETERED` for scheduled work (`unmeteredOnly = true` in
 `DownloadScheduler.enqueue`). If you add anything that talks to the internet on its own, apply the
-same rule. Manual downloads the parent starts are the exception and use any connection.
+same rule. Manual downloads the parent starts are the exception and use any connection (the update button is
+not: the APK is large, so it stays Wi-Fi only).
+
+**Self-update must stay parent-only and verified.** `UpdateManager` downloads the newest GitHub
+release APK and checks that it is this package, newer, and signed with the same key before it
+offers it. Installing starts only from the parent area, never from anything the child can reach.
+The release tag maps to the version code with `major*10000 + minor*100 + patch`; keep
+`UpdateManager.versionCodeOf` and the workflow in step, or updates stop being offered.
 
 **Never touch video files directly; go through `VideoStorage`.** Videos live in the parent-picked
 folder (SAF `DocumentFile`, so they survive updates and uninstalls) or, until a folder is picked or
