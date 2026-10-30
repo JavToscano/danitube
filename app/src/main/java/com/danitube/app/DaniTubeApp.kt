@@ -10,6 +10,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.danitube.app.data.download.YtDlpUpdateWorker
 import com.danitube.app.data.suggest.SuggestionWorker
+import com.danitube.app.data.update.UpdateWorker
 import dagger.hilt.android.HiltAndroidApp
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -38,5 +39,12 @@ class DaniTubeApp : Application(), Configuration.Provider {
             .build()
         WorkManager.getInstance(this)
             .enqueueUniquePeriodicWork(SuggestionWorker.NAME, ExistingPeriodicWorkPolicy.KEEP, suggestions)
+
+        // Looks for a newer release on GitHub and downloads it; Wi-Fi only. The parent installs it.
+        val updates = PeriodicWorkRequestBuilder<UpdateWorker>(1, TimeUnit.DAYS)
+            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.UNMETERED).build())
+            .build()
+        WorkManager.getInstance(this)
+            .enqueueUniquePeriodicWork(UpdateWorker.NAME, ExistingPeriodicWorkPolicy.KEEP, updates)
     }
 }

@@ -76,6 +76,18 @@
     <string name="suggestions_search_now">Buscar sugerencias ahora</string>
     <string name="suggested_label">Sugerido de YouTube</string>
 
+    <!-- Actualizaciones -->
+    <string name="update_version">DaniTube %1$s</string>
+    <string name="update_checking">Buscando actualizaciones…</string>
+    <string name="update_up_to_date">DaniTube %1$s · Estás al día</string>
+    <string name="update_needs_wifi">Conéctate a Wi-Fi para buscar actualizaciones</string>
+    <string name="update_downloading">Descargando la versión %1$s… %2$d%%</string>
+    <string name="update_available">Hay una versión nueva: %1$s</string>
+    <string name="update_failed">No se pudo buscar o descargar la actualización</string>
+    <string name="update_check">Buscar actualizaciones</string>
+    <string name="update_install">Actualizar a %1$s</string>
+    <string name="update_allow_install">Activa \"Permitir desde esta fuente\" y vuelve a tocar Actualizar</string>
+
     <!-- Pestañas -->
     <string name="nav_favorites">Favoritos</string>
     <string name="favorites_empty_title">Aún no hay favoritos</string>
